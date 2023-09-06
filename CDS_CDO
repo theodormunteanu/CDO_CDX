@@ -1,1 +1,55 @@
-
+def value_CDS2(N,r,recov,T,freq,lbd,spread,unif_rvs,gamma = 1.0,t = 0,ns = 1000,
+               CDS_type = 'seller', RPV01=True,model = 'exponential'):
+    """
+    Parameters:
+        N: notional outstanding on which the CDS is applied
+        
+        recov: recovery rate 
+        
+        r: risk_free_rate applied to all cash-flows
+        
+        freq: frequency of payments
+        
+        lbd: intensity parameters
+        
+        spread: the premium actually paid in the CDS value
+        
+        gamma: scale parameter. Useful in all distributions except Exponential
+        
+        unif_rvs: the uniform sample from which one should start
+        
+        Model: By default is exponential. 
+                It can also be Weibull, Log-Logistic, Log-Normal, Gompertz
+    Returns:
+        Necessary upfront in a non-standard CDS whose initiation value is 
+        different from zero due to different spread than the usual market spread. 
+    """
+    times = [i/freq for i in range(1,int(freq*T)+1)]
+    
+    no = int(T*freq)
+    
+    if str.lower(model)=='exponential':
+        expo_rvs = -np.log(1-unif_rvs)/lbd
+    elif str.lower(model)=='weibull':
+        expo_rvs = (-np.log(unif_rvs)/lbd)**(1/gamma)
+    elif str.lower(model) in ['lognormal','log-normal']:
+        expo_rvs = np.exp(stats.isf(unif_rvs)/gamma)/lbd
+    elif str.lower(model) in ['loglogistic','log-logistic','log logistic']:
+        expo_rvs = ((1-unif_rvs)/(unif_rvs*lbd))**gamma
+    elif str.lower(model) in ['gompertz']:
+        expo_rvs = np.log(1-np.log(unif_rvs)/lbd)/gamma
+    
+    default_leg_sims = [(1-recov)*N*np.exp(-r*(expo_rvs[i]-t))*(expo_rvs[i]<T)
+                        *(expo_rvs[i]>t) for i in range(ns)]
+    
+    times = [0]+times
+    
+    premium_leg_sims = [sum([N*(times[i]-times[i-1])*
+                (expo_rvs[j]>times[i])*np.exp(-r*(times[i]-t)) 
+                for i in range(1,no+1) if times[i]>t]) for j in range(ns)]
+    
+    if RPV01==False:
+        return spread*np.mean(premium_leg_sims)-np.mean(default_leg_sims)
+    else:
+        rpv01 = np.mean(premium_leg_sims)/N
+        return spread*rpv01*N-np.mean(default_leg_sims),rpv01
