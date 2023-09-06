@@ -1,0 +1,47 @@
+def kth_spread(notionals,recovs,expo_rvs,T,k,r,N,freq = 1,t = 0,RPV01 = False,
+               components = False):
+    """
+    THe function returns a k to default credit spread given the following parameters:
+        
+        Parameters:
+            notionals: list or array of outstanding notionals 
+            
+            recovs: list of recovery rates
+            
+            expo_rvs: multivariate random samples of default times, This need 
+            not to be necessarly generated from exponential distribution
+            
+            T = lifetime of contract
+            
+            freq = frequency of payments
+            
+            t = time of evaluation
+
+            k =  the order of default. Can be between 1 and the length of notionals declared. 
+            RPVO1: If set to anything but False, it gives you the credit risk 
+            measure. 
+            
+            components: If YES/TRUE it also renders the default leg/premium leg
+            useful for new synthetic or more complex products
+    """
+    ns = np.shape(expo_rvs)[0]
+    times = np.array([i/freq for i in range(0,int(freq*T)+1)])
+    k_elems = [kth_element(expo_rvs[i,:],k) for i in range(ns)]
+    no = int(T*freq)
+    default_leg_sims = [(1-recovs[k_elems[i][1]])*notionals[k_elems[i][1]]*
+                        np.exp(-r*k_elems[i][0])*(k_elems[i][0]<T) 
+                        for i in range(ns)]
+    premium_leg_sims = [sum([N*(times[i]-times[i-1])*
+                (k_elems[j][0]>times[i])*np.exp(-r*(times[i]-t)) 
+                for i in range(1,no+1) if times[i]>t]) for j in range(ns)]
+    if RPV01==False and components == False:
+        return np.mean(default_leg_sims)/np.mean(premium_leg_sims)
+    elif RPV01==False and components == True:
+        spread = np.mean(default_leg_sims)/np.mean(premium_leg_sims)
+        default_leg = np.mean(default_leg_sims)
+        premium_leg = np.mean(premium_leg_sims)
+        return spread,default_leg,premium_leg
+    else:
+        rpv01 = np.mean(premium_leg_sims)/N
+        spread = np.mean(default_leg_sims)/np.mean(premium_leg_sims)
+        return spread,rpv01
