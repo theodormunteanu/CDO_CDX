@@ -2,7 +2,7 @@
 """
 Created on Wed Sep 13 12:29:31 2023
 
-@author: XYZW
+@author: Theodor Munteanu
 """
 import numpy as np
 import scipy.stats as stats
